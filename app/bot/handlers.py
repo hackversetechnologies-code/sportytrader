@@ -89,16 +89,22 @@ async def _predictions_by_tier(tier: str) -> list[Prediction]:
     Return predictions for the given tier from the most recent scan day
     (prefer tomorrow, then today).
     Strict hierarchy:
-      - TOP6 includes TOP2, TOP3, TOP6
-      - TOP3 includes TOP2, TOP3 (sieved from TOP6)
-      - TOP2 includes TOP2 (sieved from TOP3)
+      - TOP6 includes TOP2, TOP3, TOP6 (max 6)
+      - TOP3 includes TOP2, TOP3 (max 3, sieved from TOP6)
+      - TOP2 includes TOP2 (max 2, sieved from TOP3)
     """
     tier_filters = {
         "TOP6": ["TOP2", "TOP3", "TOP6"],
         "TOP3": ["TOP2", "TOP3"],
         "TOP2": ["TOP2"],
     }
+    limits = {
+        "TOP6": 6,
+        "TOP3": 3,
+        "TOP2": 2,
+    }
     allowed_tiers = tier_filters.get(tier, [tier])
+    limit = limits.get(tier, 6)
 
     for target_day in [date.today() + timedelta(days=1), date.today()]:
         start = datetime.combine(target_day, datetime.min.time())
@@ -120,7 +126,7 @@ async def _predictions_by_tier(tier: str) -> list[Prediction]:
             else:
                 query = query.order_by(Prediction.rank.asc())
 
-            result = await session.execute(query)
+            result = await session.execute(query.limit(limit))
             rows = list(result.scalars().all())
             if rows:
                 return rows
@@ -149,7 +155,7 @@ async def _do_scan(send_fn, api_client: ApiFootballClient, target_day: date) -> 
         total = result.get("total", 0)
         passed = result.get("passed", 0)
         preds = await _predictions_for_day(target_day)
-        picks_text = format_tier_message("TOP6", preds)
+        picks_text = format_tier_message("TOP6", preds, target_day=target_day)
         await sent.reply(
             f"✅ <b>Scan complete — {label}</b>\n"
             f"📊 Scanned: <code>{total}</code> fixtures | 🏆 Cleared gate: <code>{passed}</code> picks\n\n"

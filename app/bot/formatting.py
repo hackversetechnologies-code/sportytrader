@@ -28,9 +28,19 @@ RANK_MEDALS = {1: "🥇", 2: "🥈", 3: "🥉"}
 HEADER = "⚽ <b>NO-3 ENGINE</b> ⚽"
 
 
-def format_tier_message(tier_key: str, predictions: list[Prediction]) -> str:
+TIER_LIMITS = {
+    "TOP2": 2,
+    "TOP3": 3,
+    "TOP6": 6,
+}
+
+
+def format_tier_message(tier_key: str, predictions: list[Prediction], target_day: date | None = None) -> str:
     title = TIER_TITLES.get(tier_key, tier_key)
     icon = TIER_EMOJIS.get(tier_key, "🏅")
+
+    limit = TIER_LIMITS.get(tier_key, 6)
+    predictions = predictions[:limit]
 
     if not predictions:
         return (
@@ -41,11 +51,18 @@ def format_tier_message(tier_key: str, predictions: list[Prediction]) -> str:
             f"<i>Daily scan runs at 10:00 PM. Use /run or the button below to trigger now.</i>"
         )
 
+    if predictions and predictions[0].kickoff:
+        day_str = predictions[0].kickoff.strftime('%A, %d %B %Y')
+    elif target_day:
+        day_str = target_day.strftime('%A, %d %B %Y')
+    else:
+        day_str = date.today().strftime('%A, %d %B %Y')
+
     lines = [
         HEADER,
         "",
         f"{icon} <b>{html.escape(title)}</b>",
-        f"📅 <i>{html.escape(date.today().strftime('%A, %d %B %Y'))}</i>",
+        f"📅 <i>{html.escape(day_str)}</i>",
         "",
         "━━━━━━━━━━━━━━━━━━━━",
     ]

@@ -2,17 +2,12 @@
 PHASE 3 — Daily pipeline orchestrator. Wires together every phase from
 fixture discovery through to the Telegram alert (FINAL BOT FLOW).
 
-Fixtures are now processed concurrently (bounded by PIPELINE_CONCURRENCY)
-so a full-day, every-competition scan stays fast — the ApiFootballClient's
-internal rate limiter still serializes the actual HTTP calls to the
-Pro-plan cap, so raising concurrency here just keeps that limiter fed
-instead of idling between sequential awaits. Each concurrent fixture gets
-its own DB session since AsyncSession is not safe to share across
-concurrently-running coroutines.
+Fixtures are processed concurrently (bounded by PIPELINE_CONCURRENCY).
 """
 import asyncio
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 
+from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api_football import ApiFootballClient
@@ -32,10 +27,6 @@ from app.services.scoring_types import MatchContext
 
 logger = get_logger(__name__)
 
-# How many fixtures to build+score concurrently. The API client's own
-# rate limiter is the real ceiling on throughput — keep this low (3-5)
-# to avoid bursting 429s when each fixture fires 4 parallel API calls.
-# 4 fixtures × 4 calls = 16 concurrent waiters is safe and predictable.
 PIPELINE_CONCURRENCY = 2
 
 
@@ -67,7 +58,18 @@ async def _process_fixture(client: ApiFootballClient, fixture, semaphore: asynci
         return await _score_one(ctx)
 
 
-async def _persist_predictions(session: AsyncSession, tiers: dict) -> None:
+async def _persist_predictions(session: AsyncSession, tiers: dict, target_day: date) -> None:
+    """
+    Reset old tiers for target_day to prevent ghost records, then persist top6/top3/top2.
+    """
+    start = datetime.combine(target_day, datetime.min.time())
+    end = start + timedelta(days=1)
+    await session.execute(
+        update(Prediction)
+        .where(Prediction.kickoff >= start, Prediction.kickoff < end)
+        .values(tier=None, rank=None)
+    )
+
     top6 = tiers.get("TOP6", [])
     top3 = tiers.get("TOP3", [])
     top2 = tiers.get("TOP2", [])
@@ -136,7 +138,7 @@ async def run_daily_pipeline(
 
     ranked = rank_matches(contexts)
     tiers = assign_tiers(ranked)
-    await _persist_predictions(session, tiers)
+    await _persist_predictions(session, tiers, target_day)
 
     logger.info(
         "Pipeline complete: %s fixtures scanned across all competitions, %s cleared the ELITE gate",
