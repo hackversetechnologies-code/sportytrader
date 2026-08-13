@@ -33,11 +33,17 @@ def get_insert_stmt(model):
 
 
 async def init_db() -> None:
-    """Create all tables if they don't exist. Simple bootstrap (swap for Alembic later)."""
+    """Create all tables if they don't exist and run light schema upgrades."""
     from app import models  # noqa: F401  (ensure models are registered)
+    from sqlalchemy import text
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        # Safe auto-migration for target_date column on existing SQLite DBs
+        try:
+            await conn.execute(text("ALTER TABLE predictions ADD COLUMN target_date VARCHAR(16)"))
+        except Exception:
+            pass  # column already exists
 
 
 async def get_session() -> AsyncSession:
