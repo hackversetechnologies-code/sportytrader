@@ -2,16 +2,18 @@
 Telegram bot command handlers with inline keyboards.
 
 Flow:
-  📅 Today button    → scan API for today + show ELITE picks
-  🌅 Tomorrow button → scan API for tomorrow + show ELITE picks
-  🏆 Top 6           → show top 6 from already-scanned results (DB)
-  🥇 Top 3           → show top 3 from already-scanned results (DB)
-  🔒 Top 2           → show top 2 from already-scanned results (DB)
+  📅 Today button    → scan API for today (Nigeria GMT+1) + show ELITE picks
+  🌅 Tomorrow button → scan API for tomorrow (Nigeria GMT+1) + show ELITE picks
+  🏆 Top 6           → show top 6 from last scan (DB)      — up to 6 picks
+  🥇 Top 3           → show top 3 sieved from top 6 (DB)  — up to 3 picks
+  🔒 Top 2           → show top 2 sieved from top 3 (DB)  — up to 2 picks
 
 All results are posted as NEW messages — existing messages are never deleted.
+All date calculations use Nigeria time (Africa/Lagos, GMT+1).
 """
 import html
 from datetime import date, datetime, timedelta
+from zoneinfo import ZoneInfo
 
 from aiogram import F, Router
 from aiogram.filters import Command
@@ -36,6 +38,15 @@ settings = get_settings()
 
 PARSE_MODE = "HTML"
 
+# ── Nigerian timezone (GMT+1) ──────────────────────────────────
+NIGERIA_TZ = ZoneInfo("Africa/Lagos")
+
+
+def nigeria_today() -> date:
+    """Return the current date in Nigerian time (Africa/Lagos, GMT+1)."""
+    return datetime.now(NIGERIA_TZ).date()
+
+
 WELCOME = (
     f"{HEADER}\n\n"
     "🎯 <b>Automated match screening</b>\n\n"
@@ -45,14 +56,16 @@ WELCOME = (
     "📅 <b>Today</b> — Scan &amp; show today's ELITE picks\n"
     "🌅 <b>Tomorrow</b> — Scan &amp; show tomorrow's ELITE picks\n"
     "🏆 <b>Top 6</b> — Best 6 picks from last scan\n"
-    "🥇 <b>Top 3</b> — Best 3 picks from last scan\n"
-    "🔒 <b>Top 2</b> — Safest 2 locks from last scan\n\n"
+    "🥇 <b>Top 3</b> — Best 3 picks sieved from Top 6\n"
+    "🔒 <b>Top 2</b> — Safest 2 locks sieved from Top 3\n\n"
     "Or use commands: <code>/today</code> <code>/tomorrow</code> "
     "<code>/top6</code> <code>/top3</code> <code>/top2</code> <code>/run</code>\n"
     "━━━━━━━━━━━━━━━━━━━━\n"
-    "🔔 <i>Auto-scan + broadcast runs every night at 10:00 PM.</i>\n"
+    "🔔 <i>Auto-scan + broadcast runs every night at 10:00 PM Nigerian time.</i>\n"
 )
 
+
+# ── Helpers ────────────────────────────────────────────────────
 
 async def _reg(obj) -> None:
     try:
@@ -67,6 +80,7 @@ async def _reg(obj) -> None:
 
 
 async def _predictions_for_day(target_day: date) -> list[Prediction]:
+    """Fetch all TOP6-gated predictions for target_day ordered by rank."""
     start = datetime.combine(target_day, datetime.min.time())
     end = start + timedelta(days=1)
     async with async_session() as session:
@@ -80,53 +94,58 @@ async def _predictions_for_day(target_day: date) -> list[Prediction]:
                 Prediction.removed_at_recheck.is_(False),
             )
             .order_by(Prediction.rank.asc())
+            .limit(6)
         )
         return list(result.scalars().all())
 
 
+# ── Strict funnel queries ─────────────────────────────────────
+# TOP6: queries tier IN ('TOP2','TOP3','TOP6'), limits to 6   (all elite picks)
+# TOP3: queries tier IN ('TOP2','TOP3'),        limits to 3   (sieved from TOP6)
+# TOP2: queries tier IN ('TOP2'),               limits to 2   (sieved from TOP3)
+
+_TIER_FILTERS = {
+    "TOP6": (["TOP2", "TOP3", "TOP6"], 6),
+    "TOP3": (["TOP2", "TOP3"],         3),
+    "TOP2": (["TOP2"],                 2),
+}
+
+
 async def _predictions_by_tier(tier: str) -> list[Prediction]:
     """
-    Return predictions for the given tier from the most recent scan day
-    (prefer tomorrow, then today).
-    Strict hierarchy:
-      - TOP6 includes TOP2, TOP3, TOP6 (max 6)
-      - TOP3 includes TOP2, TOP3 (max 3, sieved from TOP6)
-      - TOP2 includes TOP2 (max 2, sieved from TOP3)
+    Return predictions for the requested tier from the most recent scan day
+    (prefer tomorrow, then today — both in Nigerian time).
+
+    Strict funnel:
+      TOP6  ← all ELITE picks           (max 6)
+      TOP3  ← sieved from TOP6          (max 3, subset of TOP6)
+      TOP2  ← sieved from TOP3          (max 2, subset of TOP3)
     """
-    tier_filters = {
-        "TOP6": ["TOP2", "TOP3", "TOP6"],
-        "TOP3": ["TOP2", "TOP3"],
-        "TOP2": ["TOP2"],
-    }
-    limits = {
-        "TOP6": 6,
-        "TOP3": 3,
-        "TOP2": 2,
-    }
-    allowed_tiers = tier_filters.get(tier, [tier])
-    limit = limits.get(tier, 6)
+    allowed_tiers, limit = _TIER_FILTERS.get(tier, ([tier], 6))
 
-    for target_day in [date.today() + timedelta(days=1), date.today()]:
+    for target_day in [nigeria_today() + timedelta(days=1), nigeria_today()]:
         start = datetime.combine(target_day, datetime.min.time())
-        end = start + timedelta(days=1)
+        end   = start + timedelta(days=1)
         async with async_session() as session:
-            query = select(Prediction).where(
-                Prediction.kickoff >= start,
-                Prediction.kickoff < end,
-                Prediction.tier.in_(allowed_tiers),
-                Prediction.passed_consensus.is_(True),
-                Prediction.removed_at_recheck.is_(False),
-            )
             if tier == "TOP6":
-                query = query.order_by(Prediction.rank.asc())
+                order = Prediction.rank.asc()
             elif tier == "TOP3":
-                query = query.order_by(Prediction.dominance_score.asc(), Prediction.no3_score.desc())
-            elif tier == "TOP2":
-                query = query.order_by(Prediction.dominance_score.asc(), Prediction.safety_score.desc(), Prediction.no3_score.desc())
-            else:
-                query = query.order_by(Prediction.rank.asc())
+                order = Prediction.dominance_score.asc()
+            else:  # TOP2
+                order = Prediction.dominance_score.asc()
 
-            result = await session.execute(query.limit(limit))
+            result = await session.execute(
+                select(Prediction)
+                .where(
+                    Prediction.kickoff >= start,
+                    Prediction.kickoff < end,
+                    Prediction.tier.in_(allowed_tiers),
+                    Prediction.passed_consensus.is_(True),
+                    Prediction.removed_at_recheck.is_(False),
+                )
+                .order_by(order)
+                .limit(limit)
+            )
             rows = list(result.scalars().all())
             if rows:
                 return rows
@@ -141,24 +160,26 @@ async def _run_pipeline(api_client: ApiFootballClient, target_day: date) -> dict
 
 
 async def _do_scan(send_fn, api_client: ApiFootballClient, target_day: date) -> None:
-    """Run pipeline for target_day, then send picks as a new message."""
-    label = "Today" if target_day == date.today() else "Tomorrow"
-    day_str = target_day.strftime("%A, %d %B %Y")
+    """Run pipeline for target_day (in Nigeria time), then send Top 6 picks as a new message."""
+    today_ng = nigeria_today()
+    label    = "Today" if target_day == today_ng else "Tomorrow"
+    day_str  = target_day.strftime("%A, %d %B %Y")
 
     sent = await send_fn(
-        f"⚡ <b>Scanning {label} ({day_str})...</b>\n"
-        f"Fetching &amp; scoring all fixtures — this may take a minute or two.",
+        f"⚡ <b>Scanning {label} ({day_str}) Nigeria Time...</b>\n"
+        f"Fetching &amp; scoring all fixtures — please wait.",
         parse_mode=PARSE_MODE,
     )
     try:
         result = await _run_pipeline(api_client, target_day)
-        total = result.get("total", 0)
+        total  = result.get("total", 0)
         passed = result.get("passed", 0)
-        preds = await _predictions_for_day(target_day)
+        preds  = await _predictions_for_day(target_day)
         picks_text = format_tier_message("TOP6", preds, target_day=target_day)
         await sent.reply(
             f"✅ <b>Scan complete — {label}</b>\n"
-            f"📊 Scanned: <code>{total}</code> fixtures | 🏆 Cleared gate: <code>{passed}</code> picks\n\n"
+            f"📊 Scanned: <code>{total}</code> fixtures | "
+            f"🏆 Cleared gate: <code>{passed}</code> picks\n\n"
             f"{picks_text}",
             parse_mode=PARSE_MODE,
             reply_markup=back_keyboard(),
@@ -183,91 +204,71 @@ async def cmd_start(message: Message) -> None:
 @router.message(Command("today"))
 async def cmd_today(message: Message, api_client: ApiFootballClient) -> None:
     await _reg(message)
-    await _do_scan(message.answer, api_client, date.today())
+    await _do_scan(message.answer, api_client, nigeria_today())
 
 
 @router.message(Command("tomorrow"))
 async def cmd_tomorrow(message: Message, api_client: ApiFootballClient) -> None:
     await _reg(message)
-    await _do_scan(message.answer, api_client, date.today() + timedelta(days=1))
+    await _do_scan(message.answer, api_client, nigeria_today() + timedelta(days=1))
 
 
 @router.message(Command("top6"))
 async def cmd_top6(message: Message) -> None:
     await _reg(message)
     preds = await _predictions_by_tier("TOP6")
-    await message.answer(
-        format_tier_message("TOP6", preds),
-        parse_mode=PARSE_MODE,
-        reply_markup=back_keyboard(),
-    )
+    await message.answer(format_tier_message("TOP6", preds), parse_mode=PARSE_MODE, reply_markup=back_keyboard())
 
 
 @router.message(Command("top3"))
 async def cmd_top3(message: Message) -> None:
     await _reg(message)
     preds = await _predictions_by_tier("TOP3")
-    await message.answer(
-        format_tier_message("TOP3", preds),
-        parse_mode=PARSE_MODE,
-        reply_markup=back_keyboard(),
-    )
+    await message.answer(format_tier_message("TOP3", preds), parse_mode=PARSE_MODE, reply_markup=back_keyboard())
 
 
 @router.message(Command("top2"))
 async def cmd_top2(message: Message) -> None:
     await _reg(message)
     preds = await _predictions_by_tier("TOP2")
-    await message.answer(
-        format_tier_message("TOP2", preds),
-        parse_mode=PARSE_MODE,
-        reply_markup=back_keyboard(),
-    )
+    await message.answer(format_tier_message("TOP2", preds), parse_mode=PARSE_MODE, reply_markup=back_keyboard())
 
 
 @router.message(Command("lock"))
 async def cmd_lock(message: Message) -> None:
     await _reg(message)
     preds = await _predictions_by_tier("TOP2")
-    await message.answer(
-        format_tier_message("TOP2", preds),
-        parse_mode=PARSE_MODE,
-        reply_markup=back_keyboard(),
-    )
+    await message.answer(format_tier_message("TOP2", preds), parse_mode=PARSE_MODE, reply_markup=back_keyboard())
 
 
 @router.message(Command("run"))
 async def cmd_run(message: Message, api_client: ApiFootballClient) -> None:
     await _reg(message)
-    await _do_scan(message.answer, api_client, date.today())
-    await _do_scan(message.answer, api_client, date.today() + timedelta(days=1))
+    await _do_scan(message.answer, api_client, nigeria_today())
+    await _do_scan(message.answer, api_client, nigeria_today() + timedelta(days=1))
 
 
-# ── Callback query handlers (always send NEW messages, nothing replaced) ──
+# ── Callback query handlers (always send NEW messages) ────────
 
 @router.callback_query(F.data == "cmd_today")
 async def cb_today(query: CallbackQuery, api_client: ApiFootballClient) -> None:
     await _reg(query)
-    await query.answer("📅 Scanning today's fixtures...")
-    await _do_scan(query.message.answer, api_client, date.today())
+    await query.answer("📅 Scanning today's fixtures (Nigeria Time)...")
+    await _do_scan(query.message.answer, api_client, nigeria_today())
 
 
 @router.callback_query(F.data == "cmd_tomorrow")
 async def cb_tomorrow(query: CallbackQuery, api_client: ApiFootballClient) -> None:
     await _reg(query)
-    await query.answer("🌅 Scanning tomorrow's fixtures...")
-    await _do_scan(query.message.answer, api_client, date.today() + timedelta(days=1))
+    await query.answer("🌅 Scanning tomorrow's fixtures (Nigeria Time)...")
+    await _do_scan(query.message.answer, api_client, nigeria_today() + timedelta(days=1))
 
 
 @router.callback_query(F.data == "cmd_top6")
 async def cb_top6(query: CallbackQuery) -> None:
     await _reg(query)
     preds = await _predictions_by_tier("TOP6")
-    await query.message.answer(
-        format_tier_message("TOP6", preds),
-        parse_mode=PARSE_MODE,
-        reply_markup=back_keyboard(),
-    )
+    await query.message.answer(format_tier_message("TOP6", preds), parse_mode=PARSE_MODE, reply_markup=back_keyboard())
     await query.answer()
 
 
@@ -275,11 +276,7 @@ async def cb_top6(query: CallbackQuery) -> None:
 async def cb_top3(query: CallbackQuery) -> None:
     await _reg(query)
     preds = await _predictions_by_tier("TOP3")
-    await query.message.answer(
-        format_tier_message("TOP3", preds),
-        parse_mode=PARSE_MODE,
-        reply_markup=back_keyboard(),
-    )
+    await query.message.answer(format_tier_message("TOP3", preds), parse_mode=PARSE_MODE, reply_markup=back_keyboard())
     await query.answer()
 
 
@@ -287,9 +284,5 @@ async def cb_top3(query: CallbackQuery) -> None:
 async def cb_top2(query: CallbackQuery) -> None:
     await _reg(query)
     preds = await _predictions_by_tier("TOP2")
-    await query.message.answer(
-        format_tier_message("TOP2", preds),
-        parse_mode=PARSE_MODE,
-        reply_markup=back_keyboard(),
-    )
+    await query.message.answer(format_tier_message("TOP2", preds), parse_mode=PARSE_MODE, reply_markup=back_keyboard())
     await query.answer()

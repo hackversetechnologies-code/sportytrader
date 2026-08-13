@@ -6,6 +6,7 @@ Fixtures are processed concurrently (bounded by PIPELINE_CONCURRENCY).
 """
 import asyncio
 from datetime import date, datetime, timedelta
+import zoneinfo
 
 from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -121,9 +122,14 @@ async def _persist_predictions(session: AsyncSession, tiers: dict, target_day: d
 
 
 async def run_daily_pipeline(
-    session: AsyncSession, client: ApiFootballClient, target_day: date | None = None, timezone: str = "UTC"
+    session: AsyncSession, client: ApiFootballClient, target_day: date | None = None, timezone: str = "Africa/Lagos"
 ) -> dict:
-    target_day = target_day or (date.today() + timedelta(days=1))
+    if target_day is None:
+        try:
+            tz = zoneinfo.ZoneInfo(timezone)
+        except Exception:
+            tz = zoneinfo.ZoneInfo("Africa/Lagos")
+        target_day = datetime.now(tz).date() + timedelta(days=1)
     logger.info("Running NO-3 daily pipeline for %s (full competition scan)", target_day)
 
     fixtures = await discover_fixtures(session, client, target_day, timezone)
