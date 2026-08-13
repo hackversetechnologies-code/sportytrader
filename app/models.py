@@ -98,6 +98,7 @@ class Prediction(Base):
     away_team: Mapped[str] = mapped_column(String(128))
     league_name: Mapped[str] = mapped_column(String(128))
     kickoff: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    target_date: Mapped[str | None] = mapped_column(String(16), nullable=True, index=True)  # YYYY-MM-DD in Nigerian time
 
     no3_score: Mapped[float] = mapped_column(Float, default=0.0)
     dominance_score: Mapped[float] = mapped_column(Float, default=0.0)

@@ -127,10 +127,13 @@ async def discover_fixtures(
 
     await session.commit()
 
+    valid_ids = [item.get("fixture", {}).get("id") for item in raw_fixtures if item.get("fixture", {}).get("id")]
+    if not valid_ids:
+        return []
+
     result = await session.execute(
         select(Fixture).where(
-            Fixture.date >= datetime.combine(target_day, datetime.min.time()),
-            Fixture.date < datetime.combine(target_day + timedelta(days=1), datetime.min.time()),
+            Fixture.fixture_id.in_(valid_ids),
             Fixture.status == PLAYABLE_STATUS,
         )
     )

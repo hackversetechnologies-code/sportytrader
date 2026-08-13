@@ -81,14 +81,12 @@ async def _reg(obj) -> None:
 
 async def _predictions_for_day(target_day: date) -> list[Prediction]:
     """Fetch all TOP6-gated predictions for target_day ordered by rank."""
-    start = datetime.combine(target_day, datetime.min.time())
-    end = start + timedelta(days=1)
+    target_str = target_day.isoformat()
     async with async_session() as session:
         result = await session.execute(
             select(Prediction)
             .where(
-                Prediction.kickoff >= start,
-                Prediction.kickoff < end,
+                Prediction.target_date == target_str,
                 Prediction.tier.in_(["TOP2", "TOP3", "TOP6"]),
                 Prediction.passed_consensus.is_(True),
                 Prediction.removed_at_recheck.is_(False),
@@ -124,8 +122,7 @@ async def _predictions_by_tier(tier: str) -> list[Prediction]:
     allowed_tiers, limit = _TIER_FILTERS.get(tier, ([tier], 6))
 
     for target_day in [nigeria_today() + timedelta(days=1), nigeria_today()]:
-        start = datetime.combine(target_day, datetime.min.time())
-        end   = start + timedelta(days=1)
+        target_str = target_day.isoformat()
         async with async_session() as session:
             if tier == "TOP6":
                 order = Prediction.rank.asc()
@@ -137,8 +134,7 @@ async def _predictions_by_tier(tier: str) -> list[Prediction]:
             result = await session.execute(
                 select(Prediction)
                 .where(
-                    Prediction.kickoff >= start,
-                    Prediction.kickoff < end,
+                    Prediction.target_date == target_str,
                     Prediction.tier.in_(allowed_tiers),
                     Prediction.passed_consensus.is_(True),
                     Prediction.removed_at_recheck.is_(False),

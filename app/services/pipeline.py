@@ -8,7 +8,7 @@ import asyncio
 from datetime import date, datetime, timedelta
 import zoneinfo
 
-from sqlalchemy import update
+from sqlalchemy import delete, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api_football import ApiFootballClient
@@ -61,14 +61,11 @@ async def _process_fixture(client: ApiFootballClient, fixture, semaphore: asynci
 
 async def _persist_predictions(session: AsyncSession, tiers: dict, target_day: date) -> None:
     """
-    Reset old tiers for target_day to prevent ghost records, then persist top6/top3/top2.
+    Reset old predictions for target_day using exact target_date string to prevent cross-day mixing.
     """
-    start = datetime.combine(target_day, datetime.min.time())
-    end = start + timedelta(days=1)
+    target_date_str = target_day.isoformat()
     await session.execute(
-        update(Prediction)
-        .where(Prediction.kickoff >= start, Prediction.kickoff < end)
-        .values(tier=None, rank=None)
+        delete(Prediction).where(Prediction.target_date == target_date_str)
     )
 
     top6 = tiers.get("TOP6", [])
@@ -95,6 +92,7 @@ async def _persist_predictions(session: AsyncSession, tiers: dict, target_day: d
             away_team=fixture.away_team,
             league_name=fixture.league_name,
             kickoff=fixture.date,
+            target_date=target_date_str,
             no3_score=ctx.no3_score,
             dominance_score=ctx.dominance_score,
             safety_score=ctx.safety_score,
@@ -108,6 +106,7 @@ async def _persist_predictions(session: AsyncSession, tiers: dict, target_day: d
         stmt = stmt.on_conflict_do_update(
             index_elements=["fixture_id"],
             set_={
+                "target_date": stmt.excluded.target_date,
                 "no3_score": stmt.excluded.no3_score,
                 "dominance_score": stmt.excluded.dominance_score,
                 "safety_score": stmt.excluded.safety_score,
