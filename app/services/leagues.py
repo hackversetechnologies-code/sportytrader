@@ -31,7 +31,7 @@ Scanning includes priority support for requested target leagues:
 SCAN_ALL_LEAGUES = True  →  scans every senior competitive match while rejecting youth/reserve/friendlies/women's fixtures.
 """
 
-SCAN_ALL_LEAGUES = True
+SCAN_ALL_LEAGUES = False
 
 # Whitelisted / Target League IDs (API-Football IDs)
 TARGET_LEAGUE_IDS: dict[int, str] = {
@@ -87,15 +87,27 @@ TARGET_LEAGUE_IDS: dict[int, str] = {
 
 LEAGUE_WHITELIST: dict[int, str] = {
     **TARGET_LEAGUE_IDS,
-    # Major Europe (England, Spain, Germany, Italy A, France 1, Europa League)
+    # Major Europe & Worldwide SportyBet Mainstream Leagues
     39: "Premier League",
     40: "Championship",
+    41: "League One",
     140: "La Liga",
+    141: "La Liga 2",
     78: "Bundesliga",
+    79: "2. Bundesliga",
     135: "Serie A",
     61: "Ligue 1",
+    71: "Série A (Brazil)",
+    88: "Eredivisie",
+    144: "Pro League (Belgium)",
+    203: "Süper Lig (Turkey)",
+    179: "Premiership (Scotland)",
+    307: "Saudi Pro League",
+    253: "MLS",
+    262: "Liga MX",
     3: "UEFA Europa League",
     848: "UEFA Conference League",
+    11: "CONMEBOL Sudamericana",
 }
 
 # League IDs to hard-exclude
