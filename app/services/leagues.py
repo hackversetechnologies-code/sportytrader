@@ -1,116 +1,116 @@
 """
-PHASE 5 — League scanning rules.
+PHASE 5 — Strict SportyBet Mainstream League scanning rules.
 
-Scanning includes priority support for requested target leagues:
-1. Argentina Primera (Liga Profesional)
-2. Uruguay Primera
-3. Paraguay Primera
-4. Morocco Botola
-5. Algeria Ligue 1
-6. Tunisia Ligue 1
-7. South Africa PSL
-8. Portugal Primeira Liga
-9. Italy Serie B
-10. France Ligue 2
-11. Romania Liga I
-12. Serbia SuperLiga
-13. Bulgaria First League
-14. Brazil Serie B
-15. Nigeria Premier League
-16. Slovenia PrvaLiga
-17. Slovakia Super Liga
-18. Czech First League
-19. Additional competitive leagues
-20. Paraguay - Division Intermedia
-21. Russia - Premier League
-22. Eerste Divisie
-23. UEFA Champions League
-24. Cupa României
-25. CONMEBOL Libertadores
+Exact 40 requested top-flight leagues and major continental tournaments:
 
-SCAN_ALL_LEAGUES = True  →  scans every senior competitive match while rejecting youth/reserve/friendlies/women's fixtures.
+South America:
+  1. Argentina Primera (Liga Profesional - 128)
+  2. Uruguay Primera (268)
+  3. Paraguay Primera (Division Profesional - 250)
+  4. Brazil Série A (71)
+  5. Colombia Primera A (239)
+  6. Chile Primera (265)
+  7. Peru Liga 1 (281)
+
+Europe:
+  8. England Premier League (39)
+  9. Spain LaLiga (140)
+  10. Italy Serie A (135)
+  11. Germany Bundesliga (78)
+  12. France Ligue 1 (61)
+  13. Portugal Primeira Liga (94)
+  14. Netherlands Eredivisie (88)
+  15. Belgium Pro League (144)
+  16. Scotland Premiership (179)
+  17. Turkey Süper Lig (203)
+  18. Romania Liga I (283)
+  19. Serbia SuperLiga (286)
+  20. Bulgaria First League (172)
+  21. Slovenia PrvaLiga (373)
+  22. Slovakia Super Liga (332)
+  23. Czech First League (345)
+  24. Russia Premier League (235)
+
+Africa:
+  25. Morocco Botola (200)
+  26. Algeria Ligue 1 (186)
+  27. Tunisia Ligue 1 (202)
+  28. South Africa PSL (288)
+  29. Nigeria Premier League (396)
+
+North America & Asia:
+  30. USA MLS (253)
+  31. Mexico Liga MX (262)
+  32. Japan J1 League (98)
+  33. South Korea K-League 1 (292)
+  34. Saudi Pro League (307)
+
+Major Continental Tournaments:
+  35. UEFA Champions League (2)
+  36. UEFA Europa League (3)
+  37. UEFA Conference League (848)
+  38. CONMEBOL Libertadores (13)
+  39. CONMEBOL Sudamericana (11)
+  40. AFC Champions League Elite (17)
 """
 
 SCAN_ALL_LEAGUES = False
 
-# Whitelisted / Target League IDs (API-Football IDs)
+# Whitelisted 40 SportyBet Mainstream League IDs (API-Football IDs)
 TARGET_LEAGUE_IDS: dict[int, str] = {
-    # 1. Argentina Primera
-    128: "Liga Profesional",
-    # 2. Uruguay Primera
-    268: "Primera División",
-    # 3. Paraguay Primera
-    250: "Division Profesional",
-    # 4. Morocco Botola
-    200: "Botola Pro",
-    # 5. Algeria Ligue 1
-    186: "Ligue 1",
-    # 6. Tunisia Ligue 1
-    202: "Ligue 1",
-    # 7. South Africa PSL
-    288: "Premier League",
-    # 8. Portugal Primeira Liga
-    94: "Primeira Liga",
-    # 9. Italy Serie B
-    136: "Serie B",
-    # 10. France Ligue 2
-    62: "Ligue 2",
-    # 11. Romania Liga I
-    283: "Liga I",
-    # 12. Serbia SuperLiga
-    286: "SuperLiga",
-    # 13. Bulgaria First League
-    172: "First League",
-    # 14. Brazil Serie B
-    72: "Série B",
-    # 15. Nigeria Premier League
-    396: "NPFL",
-    # 16. Slovenia PrvaLiga
-    373: "1. SNL",
-    # 17. Slovakia Super Liga
-    332: "Super Liga",
-    # 18. Czech First League
-    345: "First League",
-    # 20. Paraguay Division Intermedia
-    252: "Division Intermedia",
-    # 21. Russia Premier League
-    235: "Premier League",
-    # 22. Eerste Divisie
-    89: "Eerste Divisie",
-    # 23. UEFA Champions League
-    2: "UEFA Champions League",
-    # 24. Cupa României
-    546: "Cupa României",
-    # 25. CONMEBOL Libertadores
-    13: "CONMEBOL Libertadores",
-}
+    # South America
+    128: "Argentina - Liga Profesional",
+    268: "Uruguay - Primera División",
+    250: "Paraguay - Division Profesional",
+    71: "Brazil - Série A",
+    239: "Colombia - Primera A",
+    265: "Chile - Primera División",
+    281: "Peru - Liga 1",
 
-LEAGUE_WHITELIST: dict[int, str] = {
-    **TARGET_LEAGUE_IDS,
-    # Major Europe & Worldwide SportyBet Mainstream Leagues
-    39: "Premier League",
-    40: "Championship",
-    41: "League One",
-    140: "La Liga",
-    141: "La Liga 2",
-    78: "Bundesliga",
-    79: "2. Bundesliga",
-    135: "Serie A",
-    61: "Ligue 1",
-    71: "Série A (Brazil)",
-    88: "Eredivisie",
-    144: "Pro League (Belgium)",
-    203: "Süper Lig (Turkey)",
-    179: "Premiership (Scotland)",
-    307: "Saudi Pro League",
-    253: "MLS",
-    262: "Liga MX",
+    # Europe
+    39: "England - Premier League",
+    140: "Spain - LaLiga",
+    135: "Italy - Serie A",
+    78: "Germany - Bundesliga",
+    61: "France - Ligue 1",
+    94: "Portugal - Primeira Liga",
+    88: "Netherlands - Eredivisie",
+    144: "Belgium - Pro League",
+    179: "Scotland - Premiership",
+    203: "Turkey - Süper Lig",
+    283: "Romania - Liga I",
+    286: "Serbia - SuperLiga",
+    172: "Bulgaria - First League",
+    373: "Slovenia - PrvaLiga",
+    332: "Slovakia - Super Liga",
+    345: "Czech Republic - First League",
+    235: "Russia - Premier League",
+
+    # Africa
+    200: "Morocco - Botola Pro",
+    186: "Algeria - Ligue 1",
+    202: "Tunisia - Ligue 1",
+    288: "South Africa - Premier Soccer League",
+    396: "Nigeria - NPFL",
+
+    # North America & Asia
+    253: "USA - MLS",
+    262: "Mexico - Liga MX",
+    98: "Japan - J1 League",
+    292: "South Korea - K League 1",
+    307: "Saudi Arabia - Saudi Pro League",
+
+    # Major Continental Tournaments
+    2: "UEFA Champions League",
     3: "UEFA Europa League",
     848: "UEFA Conference League",
+    13: "CONMEBOL Libertadores",
     11: "CONMEBOL Sudamericana",
+    17: "AFC Champions League Elite",
 }
 
-# League IDs to hard-exclude
+LEAGUE_WHITELIST: dict[int, str] = dict(TARGET_LEAGUE_IDS)
+
 EXCLUDED_LEAGUE_IDS: set[int] = set()
 
 # Lowercase substrings that trigger rejection of non-senior competitive fixtures
