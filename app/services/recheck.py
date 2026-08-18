@@ -86,13 +86,31 @@ async def recheck_prediction(
     except (KeyError, ValueError, ZeroDivisionError, TypeError, IndexError):
         pass
 
-    # Major injury check — any injury flagged for a key player (heuristic: any
-    # injury entry with type "Missing Fixture" for a starting-caliber player)
+    # 3 Mandatory Match Selection Rules & Disqualification Criteria:
+    # 1. Key Player Availability Check
+    # 2. Goalkeeper Parity & Condition Check
+    # 3. Defensive Lineup Strength Check
     if not removed:
-        major_injuries = [i for i in injuries if (i.get("player", {}).get("type") or "").lower() == "missing fixture"]
-        if len(major_injuries) >= 2:
-            removed = True
-            reason = f"Multiple key injuries reported ({len(major_injuries)})"
+        from app.services.filters import (
+            key_player_availability_filter,
+            goalkeeper_parity_filter,
+            defensive_lineup_strength_filter,
+        )
+        ctx = MatchContext(
+            fixture=None,
+            home_stats=None,
+            away_stats=None,
+            h2h=[],
+            odds=fresh_odds,
+            injuries=injuries,
+            lineups=lineups,
+        )
+        for filt in (key_player_availability_filter, goalkeeper_parity_filter, defensive_lineup_strength_filter):
+            filt(ctx)
+            if ctx.rejected:
+                removed = True
+                reason = ctx.rejected_reason
+                break
 
     if removed:
         prediction.removed_at_recheck = True
