@@ -1,24 +1,27 @@
 """
 PHASE 14 — Consensus Engine (ELITE hard gate).
 
-Updated rule: this is no longer a "4 of 5 votes" system. A match must pass
-BOTH of these, with no exceptions, or it is dropped entirely — it never
-reaches the ranking engine, never gets persisted, never shows up in any
-tier:
+A match must pass BOTH of these or it is dropped entirely — it never
+reaches the ranking engine, never gets persisted, never shows up in any tier:
 
-    1. NO-3 score >= 85
-    2. Safety score == 100 (perfect safety — any deduction disqualifies it)
+    1. NO-3 score >= 85   (low blowout risk)
+    2. Safety score >= 85 (at most one minor deduction allowed)
 
-Matches that clear this gate are labeled tier "ELITE" (matches the
-NO-3: 88.5 | Safety: 100 | Tier: ELITE badge format used in the bot output).
+Requiring Safety == 100 is too strict in practice: any match with
+dominance > 50 takes a -15 deduction, leaving 85 — perfectly acceptable
+risk — but would have been silently dropped under the old rule.  >= 85
+lets those matches through while still blocking truly dangerous fixtures
+(dominance > 50 AND early-goal risk >= 61 would land at 65, still rejected).
+
+Matches that clear this gate are labeled tier "ELITE".
 Dominance/odds/form are still computed upstream and stored on the
 prediction for context, but they no longer gate inclusion — NO-3 and
-Safety are the only two hard requirements now.
+Safety are the only two hard requirements.
 """
 from app.services.scoring_types import MatchContext
 
 NO3_PASS_THRESHOLD = 85.0
-SAFETY_PASS_THRESHOLD = 100.0
+SAFETY_PASS_THRESHOLD = 85.0  # relaxed from 100 — see docstring above
 
 
 def evaluate_consensus(ctx: MatchContext) -> tuple[bool, int]:

@@ -38,17 +38,51 @@ def h2h_blowout_filter(ctx: MatchContext) -> None:
 
 def goal_explosion_filter(ctx: MatchContext) -> None:
     """
-    PHASE 9 — reject if either team scored 4+ or conceded 4+ twice in their
-    last 5 games. Uses each team's `form` string combined with goals data
-    where available; falls back gracefully if detailed match-by-match goals
-    aren't cached yet (this needs a fixtures/last=5 call per team to be
-    fully precise — see the TODO below for wiring that in).
+    PHASE 9 — Reject if either team has been regularly involved in
+    high-scoring matches (4+ goals) in recent form.
+
+    Uses the TeamStatistics data already in ctx (goals scored/conceded
+    per match) as a proxy.  A team is flagged as "explosive" if:
+      - Their goals_scored per match >= 2.5  (high attacking output), OR
+      - Their goals_conceded per match >= 2.5 (leaky defence)
+
+    If BOTH teams are explosive (attacker + leaky defence pairing) the
+    fixture is rejected as a goal-fest risk.  A single flagged team is
+    not enough on its own — we need the matchup to be mutually explosive.
+
+    For a fully precise implementation, replace this with a
+    /fixtures?team={id}&last=5 call per team and count individual
+    matches where total goals >= 4.
     """
-    # NOTE: TeamStatistics as currently modeled stores season totals, not a
-    # per-match log. For an exact implementation, fetch
-    # /fixtures?team={id}&last=5 per team and count 4+ goal games directly.
-    # This is left as an explicit extension point rather than faked here.
-    pass
+    home, away = ctx.home_stats, ctx.away_stats
+    if not home or not away:
+        return  # no data — can't filter, give benefit of the doubt
+
+    if not home.matches_played or not away.matches_played:
+        return
+
+    home_scored_rate = home.goals_scored / home.matches_played
+    home_conceded_rate = home.goals_conceded / home.matches_played
+    away_scored_rate = away.goals_scored / away.matches_played
+    away_conceded_rate = away.goals_conceded / away.matches_played
+
+    EXPLOSION_THRESHOLD = 2.5  # goals per match
+
+    home_explosive = (
+        home_scored_rate >= EXPLOSION_THRESHOLD
+        or home_conceded_rate >= EXPLOSION_THRESHOLD
+    )
+    away_explosive = (
+        away_scored_rate >= EXPLOSION_THRESHOLD
+        or away_conceded_rate >= EXPLOSION_THRESHOLD
+    )
+
+    if home_explosive and away_explosive:
+        ctx.reject(
+            f"Goal-explosion risk: home scores/concedes "
+            f"{home_scored_rate:.1f}/{home_conceded_rate:.1f} gpg, "
+            f"away {away_scored_rate:.1f}/{away_conceded_rate:.1f} gpg"
+        )
 
 
 def early_goal_filter(ctx: MatchContext) -> None:

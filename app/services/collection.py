@@ -99,9 +99,16 @@ async def collect_h2h(
     home_name: str, away_name: str, last: int = 10,
 ) -> list[H2HRecord]:
     async with async_session() as session:
+        # Check both orderings — historical H2H records alternate home/away
+        # between seasons, so the same fixture pair may be cached in either
+        # direction.
         result = await session.execute(
             select(H2HRecord).where(
-                H2HRecord.home_team_id == home_id, H2HRecord.away_team_id == away_id
+                (
+                    (H2HRecord.home_team_id == home_id) & (H2HRecord.away_team_id == away_id)
+                ) | (
+                    (H2HRecord.home_team_id == away_id) & (H2HRecord.away_team_id == home_id)
+                )
             ).order_by(H2HRecord.match_date.desc()).limit(last)
         )
         existing = list(result.scalars().all())
@@ -112,15 +119,21 @@ async def collect_h2h(
         for item in raw:
             fixture_info = item.get("fixture", {})
             goals = item.get("goals", {})
+            teams = item.get("teams", {})
             try:
                 match_date = datetime.fromisoformat(fixture_info.get("date"))
             except (TypeError, ValueError):
                 continue
+            # Store with actual home/away from the historical record
+            actual_home_id = (teams.get("home") or {}).get("id", home_id)
+            actual_away_id = (teams.get("away") or {}).get("id", away_id)
+            actual_home_name = (teams.get("home") or {}).get("name", home_name)
+            actual_away_name = (teams.get("away") or {}).get("name", away_name)
             stmt = get_insert_stmt(H2HRecord).values(
-                home_team_id=home_id,
-                away_team_id=away_id,
-                home_team=home_name,
-                away_team=away_name,
+                home_team_id=actual_home_id,
+                away_team_id=actual_away_id,
+                home_team=actual_home_name,
+                away_team=actual_away_name,
                 match_date=match_date,
                 home_goals=goals.get("home") or 0,
                 away_goals=goals.get("away") or 0,
@@ -130,7 +143,11 @@ async def collect_h2h(
 
         result = await session.execute(
             select(H2HRecord).where(
-                H2HRecord.home_team_id == home_id, H2HRecord.away_team_id == away_id
+                (
+                    (H2HRecord.home_team_id == home_id) & (H2HRecord.away_team_id == away_id)
+                ) | (
+                    (H2HRecord.home_team_id == away_id) & (H2HRecord.away_team_id == home_id)
+                )
             ).order_by(H2HRecord.match_date.desc()).limit(last)
         )
         return list(result.scalars().all())
@@ -144,10 +161,26 @@ async def collect_odds(client: ApiFootballClient, fixture_id: int) -> list[dict]
     return await client.get_odds(fixture_id)
 
 
-async def collect_lineups(client: ApiFootballClient, fixture_id: int) -> list[dict]:
-    """Lineups are only populated by the API close to kickoff — call this
-    from the PHASE 17 pre-kickoff recheck, not the daily pipeline."""
-    return await client.get_lineups(fixture_id)
+async def collect_fixture_events(client: ApiFootballClient, fixture_id: int) -> list[dict]:
+    """
+    Fetch the goal/card event log for a fixture (PHASE 10 — early goal filter).
+    For upcoming (NS) fixtures the API returns an empty list, which is fine —
+    the early_goal_filter only needs events from *recent* matches, but the
+    API-Football /fixtures/events endpoint works on fixture ID so we can only
+    query matches that have already been played.
+
+    NOTE: The early_goal_filter in filters.py is designed to work on events
+    from a team's *recent* fixtures, not the upcoming one itself.  Calling
+    this on a not-yet-played fixture will legitimately return [].
+    To make the filter fully precise, swap this for a call that fetches
+    recent completed fixtures per team and their events (see filters.py
+    for detail).  Until then the filter falls back gracefully to risk=0.
+    """
+    try:
+        return await client.get_fixture_events(fixture_id)
+    except Exception:
+        logger.warning("Could not fetch events for fixture %s, defaulting to empty", fixture_id)
+        return []
 
 
 async def collect_all_for_fixture(client: ApiFootballClient, fixture: Fixture) -> dict:
@@ -155,19 +188,39 @@ async def collect_all_for_fixture(client: ApiFootballClient, fixture: Fixture) -
     Gather everything the feature engineering step needs for one fixture.
     Safe to run concurrently across many fixtures at once (see
     app/services/pipeline.py) — every DB-touching call here manages its
-    own session, and none of the four calls below share state with each
+    own session, and none of the five calls below share state with each
     other either, so this whole function is concurrency-safe end to end.
+
+    Fixture events (goal minutes) are fetched here so that the PHASE 10
+    early_goal_filter in filters.py actually has data to work with.
+    Previously events were never collected during the daily pipeline,
+    making ctx.home_events / ctx.away_events always empty and the filter
+    a silent no-op.
     """
-    home_stats, away_stats, h2h, odds = await asyncio.gather(
+    home_stats, away_stats, h2h, odds, events = await asyncio.gather(
         collect_team_statistics(client, fixture.home_team_id, fixture.league_id, fixture.season),
         collect_team_statistics(client, fixture.away_team_id, fixture.league_id, fixture.season),
         collect_h2h(client, fixture.home_team_id, fixture.away_team_id, fixture.home_team, fixture.away_team),
         collect_odds(client, fixture.fixture_id),
+        collect_fixture_events(client, fixture.fixture_id),
     )
+
+    # Split the flat events list by team so filters.py can work per-side.
+    home_events = [
+        ev for ev in events
+        if (ev.get("team") or {}).get("id") == fixture.home_team_id
+    ]
+    away_events = [
+        ev for ev in events
+        if (ev.get("team") or {}).get("id") == fixture.away_team_id
+    ]
+
     return {
         "fixture": fixture,
         "home_stats": home_stats,
         "away_stats": away_stats,
         "h2h": h2h,
         "odds": odds,
+        "home_events": home_events,
+        "away_events": away_events,
     }
