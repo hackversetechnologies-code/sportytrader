@@ -197,12 +197,13 @@ async def collect_all_for_fixture(client: ApiFootballClient, fixture: Fixture) -
     making ctx.home_events / ctx.away_events always empty and the filter
     a silent no-op.
     """
-    home_stats, away_stats, h2h, odds, events = await asyncio.gather(
+    home_stats, away_stats, h2h, odds, events, injuries = await asyncio.gather(
         collect_team_statistics(client, fixture.home_team_id, fixture.league_id, fixture.season),
         collect_team_statistics(client, fixture.away_team_id, fixture.league_id, fixture.season),
         collect_h2h(client, fixture.home_team_id, fixture.away_team_id, fixture.home_team, fixture.away_team),
         collect_odds(client, fixture.fixture_id),
         collect_fixture_events(client, fixture.fixture_id),
+        collect_injuries(client, fixture.fixture_id),
     )
 
     # Split the flat events list by team so filters.py can work per-side.
@@ -223,4 +224,5 @@ async def collect_all_for_fixture(client: ApiFootballClient, fixture: Fixture) -
         "odds": odds,
         "home_events": home_events,
         "away_events": away_events,
+        "injuries": injuries,
     }

@@ -13,6 +13,8 @@ class MatchContext:
     odds: list[dict]
     home_events: list[dict] = field(default_factory=list)
     away_events: list[dict] = field(default_factory=list)
+    injuries: list[dict] = field(default_factory=list)
+    lineups: list[dict] = field(default_factory=list)
 
     # PHASE 7 feature outputs (0-100)
     strength_gap: float = 0.0

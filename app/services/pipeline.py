@@ -57,6 +57,8 @@ async def _process_fixture(client: ApiFootballClient, fixture, semaphore: asynci
             odds=data["odds"],
             home_events=data.get("home_events", []),
             away_events=data.get("away_events", []),
+            injuries=data.get("injuries", []),
+            lineups=data.get("lineups", []),
         )
         return await _score_one(ctx)
 
