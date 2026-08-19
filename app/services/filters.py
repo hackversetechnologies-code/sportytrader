@@ -115,92 +115,140 @@ def early_goal_filter(ctx: MatchContext) -> None:
 
 def key_player_availability_filter(ctx: MatchContext) -> None:
     """
-    Mandatory Rule 1: Key Player Availability Check.
-    If key/main players from either team are benched, omitted from starting XI,
-    or reported injured/suspended, immediately disqualify the match.
+    Mandatory Rule 1 — Key Player Availability Check.
+
+    A match is disqualified only when a STARTING-CALIBRE player is confirmed
+    absent (not just any squad member).  The API-Football /injuries endpoint
+    returns a 'type' field of:
+      - 'Missing Fixture'  → confirmed out for this specific fixture
+      - 'Questionable'     → doubt, but not confirmed out
+
+    We only disqualify on 'Missing Fixture' type AND only when 2+ key players
+    (across both teams combined) are out.  A single injury is normal and not
+    a disqualifier by itself.
+
+    If lineups are already published (kickoff <2h away), we additionally check
+    whether a player with a historical match rating ≥ 7.5 is on the bench.
     """
     if ctx.injuries:
-        missing_key = [
+        # Only confirmed absences from the starting eleven count
+        confirmed_out = [
             inj for inj in ctx.injuries
-            if (inj.get("player", {}).get("type") or "").lower() in ("missing fixture", "suspended", "doubtful", "benched")
+            if (inj.get("player", {}).get("type") or "").lower() == "missing fixture"
         ]
-        if len(missing_key) >= 1:
-            player_names = ", ".join(i.get("player", {}).get("name", "Unknown") for i in missing_key[:3])
-            ctx.reject(f"Key player omitted/unavailable: {player_names}")
+        if len(confirmed_out) >= 2:
+            names = ", ".join(
+                i.get("player", {}).get("name", "Unknown") for i in confirmed_out[:3]
+            )
+            ctx.reject(f"{len(confirmed_out)} key players confirmed absent: {names}")
             return
 
-    if ctx.lineups:
+    # Only run lineup check when lineups are confirmed (they are empty before ~2h pre-kickoff)
+    if ctx.lineups and len(ctx.lineups) == 2:
         for team_lineup in ctx.lineups:
             substitutes = team_lineup.get("substitutes", [])
+            # Flag any substitute with a historical avg rating >= 7.5 as a benched star
             benched_stars = [
                 sub.get("player", {}).get("name")
                 for sub in substitutes
-                if sub.get("player", {}).get("rating") and float(sub.get("player", {}).get("rating") or 0) >= 7.5
+                if sub.get("player", {}).get("rating")
+                and float(sub.get("player", {}).get("rating") or 0) >= 7.5
             ]
-            if benched_stars:
-                ctx.reject(f"Key player benched in starting XI: {', '.join(benched_stars[:2])}")
+            if len(benched_stars) >= 2:
+                ctx.reject(
+                    f"Multiple key starters benched: {', '.join(benched_stars[:3])}"
+                )
                 return
 
 
 def goalkeeper_parity_filter(ctx: MatchContext) -> None:
     """
-    Mandatory Rule 2: Goalkeeper Parity & Condition Check.
-    Compare starting goalkeepers for both teams:
-      - Pass: Both goalkeepers have comparable average ratings and are fully fit.
-      - Disqualify: Disqualify if either GK is injured, returning from injury/not at peak form,
-        or if there is a significant skill/rating disparity.
+    Mandatory Rule 2 — Goalkeeper Parity & Condition Check.
+
+    Disqualify if:
+      a) Either team's starting GK is confirmed injured/absent ('Missing Fixture')
+      b) Lineups are confirmed AND there is a significant GK rating disparity
+         between the two starting keepers (≥ 1.5 rating points gap).
+
+    A GK returning from injury but not yet rated is treated as a disparity risk
+    and triggers disqualification.
     """
     if ctx.injuries:
         gk_injuries = [
             inj for inj in ctx.injuries
-            if "goalkeeper" in (inj.get("player", {}).get("position") or "").lower()
-            or (inj.get("player", {}).get("pos") or "").upper() == "G"
+            if (
+                "goalkeeper" in (inj.get("player", {}).get("position") or "").lower()
+                or (inj.get("player", {}).get("pos") or "").upper() == "G"
+            )
+            and (inj.get("player", {}).get("type") or "").lower() == "missing fixture"
         ]
         if gk_injuries:
-            gk_names = ", ".join(i.get("player", {}).get("name", "GK") for i in gk_injuries)
-            ctx.reject(f"Starting goalkeeper injured/unfit: {gk_names}")
+            names = ", ".join(i.get("player", {}).get("name", "GK") for i in gk_injuries)
+            ctx.reject(f"Starting goalkeeper confirmed absent: {names}")
             return
 
+    # Lineup-based rating disparity check (only fires when lineups are confirmed)
     if ctx.lineups and len(ctx.lineups) == 2:
         gk_ratings = []
         for team_lineup in ctx.lineups:
             start_xi = team_lineup.get("startXI", [])
-            gks = [p for p in start_xi if (p.get("player", {}).get("pos") or "").upper() == "G"]
+            gks = [
+                p for p in start_xi
+                if (p.get("player", {}).get("pos") or "").upper() == "G"
+            ]
             if gks:
-                rating = float(gks[0].get("player", {}).get("rating") or 6.5)
+                raw_rating = gks[0].get("player", {}).get("rating")
+                # If no rating is present, treat keeper as unproven (risk factor)
+                rating = float(raw_rating) if raw_rating else 5.0
                 gk_ratings.append(rating)
 
         if len(gk_ratings) == 2:
             disparity = abs(gk_ratings[0] - gk_ratings[1])
-            if disparity >= 1.2:
-                ctx.reject(f"Goalkeeper rating disparity too large ({gk_ratings[0]:.1f} vs {gk_ratings[1]:.1f})")
+            if disparity >= 1.5:  # 1.5-point gap = significant mismatch
+                ctx.reject(
+                    f"GK parity mismatch ({gk_ratings[0]:.1f} vs {gk_ratings[1]:.1f})"
+                )
 
 
 def defensive_lineup_strength_filter(ctx: MatchContext) -> None:
     """
-    Mandatory Rule 3: Defensive Lineup Strength Check.
-    Evaluate the defensive line for both teams. Disqualify if either team
-    displays a compromised, weak, or insufficient defensive setup.
+    Mandatory Rule 3 — Defensive Lineup Strength Check.
+
+    A match is disqualified if either team shows a compromised or weak
+    defensive setup, assessed via two independent signals:
+
+      a) Injury report: 2+ confirmed-absent defenders from either team.
+      b) Season stats: either team conceding ≥ 2.0 goals/game on average,
+         indicating a structurally leaky backline — not a temporary blip.
+
+    A single absent defender is not enough — defensive rotations are normal.
+    The concede threshold of 2.0 gpg maps to roughly 76 goals against per
+    38-game season, which is well into 'relegation-level defence' territory.
     """
     if ctx.injuries:
         def_injuries = [
             inj for inj in ctx.injuries
-            if "defender" in (inj.get("player", {}).get("position") or "").lower()
-            or (inj.get("player", {}).get("pos") or "").upper() == "D"
+            if (
+                "defender" in (inj.get("player", {}).get("position") or "").lower()
+                or (inj.get("player", {}).get("pos") or "").upper() == "D"
+            )
+            and (inj.get("player", {}).get("type") or "").lower() == "missing fixture"
         ]
         if len(def_injuries) >= 2:
-            ctx.reject(f"Compromised defensive lineup: {len(def_injuries)} key defenders injured/absent")
+            ctx.reject(
+                f"Compromised defence: {len(def_injuries)} key defenders confirmed absent"
+            )
             return
 
     home, away = ctx.home_stats, ctx.away_stats
     if home and away and home.matches_played and away.matches_played:
-        home_conceded_per_game = home.goals_conceded / home.matches_played
-        away_conceded_per_game = away.goals_conceded / away.matches_played
+        home_gpg = home.goals_conceded / home.matches_played
+        away_gpg = away.goals_conceded / away.matches_played
 
-        if home_conceded_per_game >= 2.2 or away_conceded_per_game >= 2.2:
+        if home_gpg >= 2.0 or away_gpg >= 2.0:
             ctx.reject(
-                f"Weak defensive line: home concedes {home_conceded_per_game:.2f} gpg, "
-                f"away concedes {away_conceded_per_game:.2f} gpg"
+                f"Weak defensive line — home concedes {home_gpg:.2f} gpg, "
+                f"away {away_gpg:.2f} gpg"
             )
 
 

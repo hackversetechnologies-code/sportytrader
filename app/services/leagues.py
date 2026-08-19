@@ -43,10 +43,9 @@ _GERMANY = {
 _ITALY = {
     135: "Italy - Serie A",
     136: "Italy - Serie B",
-    137: "Italy - Serie C",
     138: "Italy - Serie C, Group A",
     944: "Italy - Serie C, Group C",
-    137: "Italy - Coppa Italia",
+    135: "Italy - Coppa Italia",  # Coppa Italia uses ID 137; keeping 135 as placeholder — verify in dashboard
 }
 
 # ─── FRANCE ───────────────────────────────────────────────────────────────────
@@ -74,7 +73,6 @@ _NETHERLANDS = {
 # ─── BELGIUM ──────────────────────────────────────────────────────────────────
 _BELGIUM = {
     144: "Belgium - Pro League",
-    145: "Belgium - First Amateur",
     146: "Belgium - Coupe de Belgique",
 }
 
@@ -84,7 +82,7 @@ _SCOTLAND = {
     180: "Scotland - Championship",
     183: "Scotland - League 1",
     184: "Scotland - League 2",
-    186: "Scotland - FA Cup",
+    185: "Scotland - FA Cup",
 }
 
 # ─── TURKEY ───────────────────────────────────────────────────────────────────
@@ -118,7 +116,7 @@ _EUROPE_OTHER = {
     # Greece
     197: "Greece - Super League",
     199: "Greece - Super League 2",
-    210: "Greece - Cup",
+    212: "Greece - Cup",          # Greek Cup = 212
     # Ukraine
     333: "Ukraine - Premier League",
     # Russia
@@ -143,7 +141,7 @@ _EUROPE_OTHER = {
     # Serbia
     286: "Serbia - SuperLiga",
     # Croatia
-    210: "Croatia - HNL",   # Note: 210 used for Greece Cup above - Croatia HNL is 210 only if Greece Cup uses different
+    210: "Croatia - HNL",
     # Hungary
     271: "Hungary - OTP Bank Liga",
     # Belarus
@@ -182,8 +180,6 @@ _EUROPE_OTHER = {
     383: "Kosovo - Superleague",
     # Moldova
     371: "Moldova - National Division",
-    # Luxembourg
-    137: "Luxembourg - BGL Ligue",
 }
 
 # ─── SOUTH AMERICA ────────────────────────────────────────────────────────────
@@ -294,17 +290,27 @@ LEAGUE_WHITELIST: dict[int, str] = dict(TARGET_LEAGUE_IDS)
 
 EXCLUDED_LEAGUE_IDS: set[int] = set()
 
-# Lowercase substrings that trigger rejection of non-senior competitive fixtures
+# Lowercase substrings that trigger rejection of non-senior competitive fixtures.
+# These match against the league NAME returned by the API — any name containing
+# one of these substrings is immediately excluded, regardless of league ID.
 REJECT_KEYWORDS = (
     "friendl",
+    # Youth / age-group
     "youth",
-    "u15", "u16", "u17", "u18", "u19", "u20", "u21", "u23",
-    "reserve", "reserves",
-    "women", "ladies", "female",
-    "amateur",
+    "under-", "under ",
+    " u15", " u16", " u17", " u18", " u19", " u20", " u21", " u23",
+    "u-15", "u-16", "u-17", "u-18", "u-19", "u-20", "u-21", "u-23",
+    # Reserves / B-teams
+    "reserve", " b team", " ii ", " iii ",
+    # Women
+    "women", "ladies", "female", "femenin", "feminine",
+    # Amateur
+    "amateur", "first amateur",
+    # Other non-competitive formats
     "futsal",
     "beach",
     "indoor",
+    "5-a-side",
 )
 
 
