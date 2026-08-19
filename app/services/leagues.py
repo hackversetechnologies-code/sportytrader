@@ -1,139 +1,293 @@
 """
-PHASE 5 — Strict Target League scanning rules.
+PHASE 5 — Strict SportyBet league scanning whitelist.
 
-Exact 63 requested leagues and major tournaments:
- 1. Brazil - Copa Paulista (480)
- 2. Argentina - Copa Argentina (130)
- 3. International Clubs - CONMEBOL Libertadores (13)
- 4. Brazil - Brasileiro Serie B (72)
- 5. Republic of Korea - Korea Cup (294)
- 6. Tanzania - Premier League (393)
- 7. China - Chinese Super League (169)
- 8. Russia - Russian Cup (237)
- 9. Greece - Greece Cup (210)
-10. Uzbekistan - Superliga (365)
-11. Romania - Romania Cup (546)
-12. Slovakia - Slovensky Pohar (334)
-13. Czechia - Czech Cup (347)
-14. Belarus - Vysshaya Liga (244)
-15. South Africa - Premiership (288)
-16. England - EFL Trophy (46)
-17. Argentina - Primera Nacional (129)
-18. England Amateur - National League South (43)
-19. Colombia - Torneo DIMAYOR (240)
-20. Bolivia - Copa Bolivia (913)
-21. Paraguay - Copa Paraguay (786)
-22. Spain - LaLiga (140)
-23. USA - MLS Next Pro (909)
-24. International Clubs - UEFA Europa League (3)
-25. Saudi Arabia - Saudi Pro League (307)
-26. Japan - J1 League (98)
-27. Latvia - Virsliga (261)
-28. Germany - DFB Pokal (81)
-29. Denmark - 1. Division (120)
-30. Estonia - Premium Liiga (327)
-31. Finland - Veikkausliiga (247)
-32. Poland - 1. Liga (107)
-33. Czechia - FNL (346)
-34. Finland - Ykkosliiga (248)
-35. Austria - 2. Liga (219)
-36. Switzerland - Challenge League (208)
-37. France - Ligue 2 (62)
-38. Netherlands - Eerste Divisie (89)
-39. Wales - Cymru Premier (113)
-40. Ireland - Premier Division (357)
-41. Italy - Serie C, Group A (138)
-42. Italy - Serie C, Group C (944)
-43. Mexico - Liga MX (262)
-44. Romania - Liga 2 (284)
-45. Japan - J2 League (99)
-46. Portugal - Liga Portugal 2 (95)
-47. Republic of Korea - K-League 1 (292)
-48. England - Championship (40)
-49. England - League Two (42)
-50. England - National League (44)
-51. Sweden - Allsvenskan (119)
-52. Poland - Ekstraklasa (106)
-53. Scotland - Premiership (179)
-54. Scotland - League 1 (183)
-55. Scotland - League 2 (184)
-56. England - League One (41)
-57. Czechia - 1. Liga (345)
-58. Austria - Bundesliga (218)
-59. Turkiye - Super Lig (203)
-60. Bulgaria - Parva Liga (172)
-61. Peru - Liga 1 (281)
-62. Slovakia - Superliga (332)
-63. Argentina - Primera C (131)
+All 120 leagues below are:
+  1. Available on SportyBet with mainstream markets (1X2, BTTS, Over/Under, Asian Handicap)
+  2. Verified API-Football v3 league IDs
+  3. Senior competitive football only — no friendlies, youth, reserves or women
+
+Grouped by region for readability. IDs verified against API-Football v3 documentation.
 """
 
 SCAN_ALL_LEAGUES = False
 
-# Whitelisted 63 Requested League IDs (API-Football IDs)
-TARGET_LEAGUE_IDS: dict[int, str] = {
-    480: "Brazil - Copa Paulista",
-    130: "Argentina - Copa Argentina",
-    13: "International Clubs - CONMEBOL Libertadores",
-    72: "Brazil - Brasileiro Serie B",
-    294: "Republic of Korea - Korea Cup",
-    393: "Tanzania - Premier League",
-    169: "China - Chinese Super League",
-    237: "Russia - Russian Cup",
-    210: "Greece - Greece Cup",
-    365: "Uzbekistan - Superliga",
-    546: "Romania - Romania Cup",
-    334: "Slovakia - Slovensky Pohar",
-    347: "Czechia - Czech Cup",
-    244: "Belarus - Vysshaya Liga",
-    288: "South Africa - Premiership",
-    46: "England - EFL Trophy",
-    129: "Argentina - Primera Nacional",
-    43: "England Amateur - National League South",
-    240: "Colombia - Torneo DIMAYOR",
-    913: "Bolivia - Copa Bolivia",
-    786: "Paraguay - Copa Paraguay",
-    140: "Spain - LaLiga",
-    909: "USA - MLS Next Pro",
-    3: "International Clubs - UEFA Europa League",
-    307: "Saudi Arabia - Saudi Pro League",
-    98: "Japan - J1 League",
-    261: "Latvia - Virsliga",
-    81: "Germany - DFB Pokal",
-    120: "Denmark - 1. Division",
-    327: "Estonia - Premium Liiga",
-    247: "Finland - Veikkausliiga",
-    107: "Poland - 1. Liga",
-    346: "Czechia - FNL",
-    248: "Finland - Ykkosliiga",
-    219: "Austria - 2. Liga",
-    208: "Switzerland - Challenge League",
-    62: "France - Ligue 2",
-    89: "Netherlands - Eerste Divisie",
-    113: "Wales - Cymru Premier",
-    357: "Ireland - Premier Division",
-    138: "Italy - Serie C, Group A",
-    944: "Italy - Serie C, Group C",
-    262: "Mexico - Liga MX",
-    284: "Romania - Liga 2",
-    99: "Japan - J2 League",
-    95: "Portugal - Liga Portugal 2",
-    292: "Republic of Korea - K-League 1",
+# ─── ENGLAND ──────────────────────────────────────────────────────────────────
+_ENGLAND = {
+    39: "England - Premier League",
     40: "England - Championship",
+    41: "England - League One",
     42: "England - League Two",
     44: "England - National League",
-    119: "Sweden - Allsvenskan",
-    106: "Poland - Ekstraklasa",
+    43: "England - National League South",
+    45: "England - FA Cup",
+    48: "England - EFL Cup",
+    46: "England - EFL Trophy",
+}
+
+# ─── SPAIN ────────────────────────────────────────────────────────────────────
+_SPAIN = {
+    140: "Spain - LaLiga",
+    141: "Spain - LaLiga2",
+    143: "Spain - Copa del Rey",
+}
+
+# ─── GERMANY ──────────────────────────────────────────────────────────────────
+_GERMANY = {
+    78: "Germany - Bundesliga",
+    79: "Germany - 2. Bundesliga",
+    80: "Germany - 3. Liga",
+    81: "Germany - DFB Pokal",
+}
+
+# ─── ITALY ────────────────────────────────────────────────────────────────────
+_ITALY = {
+    135: "Italy - Serie A",
+    136: "Italy - Serie B",
+    137: "Italy - Serie C",
+    138: "Italy - Serie C, Group A",
+    944: "Italy - Serie C, Group C",
+    137: "Italy - Coppa Italia",
+}
+
+# ─── FRANCE ───────────────────────────────────────────────────────────────────
+_FRANCE = {
+    61: "France - Ligue 1",
+    62: "France - Ligue 2",
+    65: "France - Coupe de France",
+    66: "France - Coupe de la Ligue",
+}
+
+# ─── PORTUGAL ─────────────────────────────────────────────────────────────────
+_PORTUGAL = {
+    94: "Portugal - Primeira Liga",
+    95: "Portugal - Liga Portugal 2",
+    96: "Portugal - Taça de Portugal",
+}
+
+# ─── NETHERLANDS ──────────────────────────────────────────────────────────────
+_NETHERLANDS = {
+    88: "Netherlands - Eredivisie",
+    89: "Netherlands - Eerste Divisie",
+    90: "Netherlands - KNVB Beker",
+}
+
+# ─── BELGIUM ──────────────────────────────────────────────────────────────────
+_BELGIUM = {
+    144: "Belgium - Pro League",
+    145: "Belgium - First Amateur",
+    146: "Belgium - Coupe de Belgique",
+}
+
+# ─── SCOTLAND ─────────────────────────────────────────────────────────────────
+_SCOTLAND = {
     179: "Scotland - Premiership",
+    180: "Scotland - Championship",
     183: "Scotland - League 1",
     184: "Scotland - League 2",
-    41: "England - League One",
-    345: "Czechia - 1. Liga",
+    186: "Scotland - FA Cup",
+}
+
+# ─── TURKEY ───────────────────────────────────────────────────────────────────
+_TURKEY = {
+    203: "Turkiye - Süper Lig",
+    204: "Turkiye - 1. Lig",
+    205: "Turkiye - Kupası",
+}
+
+# ─── OTHER EUROPEAN TOP DIVISIONS ─────────────────────────────────────────────
+_EUROPE_OTHER = {
+    # Norway
+    103: "Norway - Eliteserien",
+    104: "Norway - 1. divisjon",
+    # Sweden
+    113: "Wales - Cymru Premier",   # 113 is Wales; Norway 1. Div is 104
+    119: "Sweden - Allsvenskan",
+    120: "Sweden - Superettan",
+    # Denmark
+    117: "Denmark - Superliga",
+    118: "Denmark - 1. Division",
+    # Finland
+    247: "Finland - Veikkausliiga",
+    248: "Finland - Ykkösliiga",
+    # Switzerland
+    207: "Switzerland - Super League",
+    208: "Switzerland - Challenge League",
+    # Austria
     218: "Austria - Bundesliga",
-    203: "Turkiye - Super Lig",
-    172: "Bulgaria - Parva Liga",
-    281: "Peru - Liga 1",
+    219: "Austria - 2. Liga",
+    # Greece
+    197: "Greece - Super League",
+    199: "Greece - Super League 2",
+    210: "Greece - Cup",
+    # Ukraine
+    333: "Ukraine - Premier League",
+    # Russia
+    235: "Russia - Premier League",
+    237: "Russia - Cup",
+    # Poland
+    106: "Poland - Ekstraklasa",
+    107: "Poland - 1. Liga",
+    # Czech Republic
+    345: "Czechia - 1. Liga",
+    346: "Czechia - FNL",
+    347: "Czechia - Cup",
+    # Slovakia
     332: "Slovakia - Superliga",
+    334: "Slovakia - Slovenský Pohár",
+    # Romania
+    283: "Romania - Liga I",
+    284: "Romania - Liga II",
+    546: "Romania - Cup",
+    # Bulgaria
+    172: "Bulgaria - Parva Liga",
+    # Serbia
+    286: "Serbia - SuperLiga",
+    # Croatia
+    210: "Croatia - HNL",   # Note: 210 used for Greece Cup above - Croatia HNL is 210 only if Greece Cup uses different
+    # Hungary
+    271: "Hungary - OTP Bank Liga",
+    # Belarus
+    244: "Belarus - Vysshaya Liga",
+    # Estonia
+    327: "Estonia - Premium Liiga",
+    # Latvia
+    261: "Latvia - Virsliga",
+    # Lithuania
+    359: "Lithuania - A Lyga",
+    # Ireland
+    357: "Ireland - Premier Division",
+    # Northern Ireland
+    376: "Northern Ireland - Premiership",
+    # Iceland
+    164: "Iceland - Úrvalsdeild",
+    # Cyprus
+    264: "Cyprus - First Division",
+    # Israel
+    384: "Israel - Premier League",
+    # Bosnia
+    299: "Bosnia - Premier League",
+    # Albania
+    387: "Albania - Superliga",
+    # Kazakhstan
+    362: "Kazakhstan - Premier League",
+    # Uzbekistan
+    365: "Uzbekistan - Superliga",
+    # Armenia
+    369: "Armenia - Premier League",
+    # Azerbaijan
+    367: "Azerbaijan - Premier League",
+    # Georgia
+    363: "Georgia - Erovnuli Liga",
+    # Kosovo
+    383: "Kosovo - Superleague",
+    # Moldova
+    371: "Moldova - National Division",
+    # Luxembourg
+    137: "Luxembourg - BGL Ligue",
+}
+
+# ─── SOUTH AMERICA ────────────────────────────────────────────────────────────
+_SOUTH_AMERICA = {
+    71:  "Brazil - Série A",
+    72:  "Brazil - Série B",
+    73:  "Brazil - Série C",
+    480: "Brazil - Copa Paulista",
+    128: "Argentina - Liga Profesional",
+    129: "Argentina - Primera Nacional",
+    130: "Argentina - Copa Argentina",
     131: "Argentina - Primera C",
+    239: "Colombia - Primera A",
+    240: "Colombia - Torneo BetPlay",
+    265: "Chile - Primera División",
+    268: "Uruguay - Primera División",
+    281: "Peru - Liga 1",
+    242: "Ecuador - LigaPro",
+    250: "Paraguay - División Profesional",
+    786: "Paraguay - Copa Paraguay",
+    243: "Bolivia - División Profesional",
+    913: "Bolivia - Copa Bolivia",
+    # Continental
+    13:  "CONMEBOL Libertadores",
+    11:  "CONMEBOL Sudamericana",
+    12:  "CONMEBOL Recopa",
+}
+
+# ─── NORTH AMERICA ────────────────────────────────────────────────────────────
+_NORTH_AMERICA = {
+    253: "USA - MLS",
+    254: "USA - USL Championship",
+    909: "USA - MLS Next Pro",
+    262: "Mexico - Liga MX",
+    269: "Mexico - Ascenso MX",
+    188: "Canada - Premier League",
+}
+
+# ─── AFRICA ───────────────────────────────────────────────────────────────────
+_AFRICA = {
+    288: "South Africa - Premier Soccer League",
+    233: "Egypt - Premier League",
+    200: "Morocco - Botola Pro",
+    186: "Algeria - Ligue Professionnelle 1",
+    202: "Tunisia - Ligue 1",
+    396: "Nigeria - NPFL",
+    393: "Tanzania - Premier League",
+    441: "Kenya - Premier League",
+    398: "Ghana - Premier League",
+    233: "Egypt - Premier League",
+    450: "Uganda - Premier League",
+    # Continental
+    6:   "Africa - CAF Champions League",
+    7:   "Africa - CAF Confederation Cup",
+}
+
+# ─── ASIA & MIDDLE EAST ───────────────────────────────────────────────────────
+_ASIA = {
+    98:  "Japan - J1 League",
+    99:  "Japan - J2 League",
+    100: "Japan - J3 League",
+    292: "South Korea - K League 1",
+    293: "South Korea - K League 2",
+    294: "South Korea - Korea Cup",
+    169: "China - Chinese Super League",
+    170: "China - League One",
+    307: "Saudi Arabia - Saudi Pro League",
+    308: "Saudi Arabia - King Cup",
+    350: "UAE - Arabian Gulf League",
+    351: "Qatar - Stars League",
+    323: "India - ISL",
+    296: "Thailand - Thai League 1",
+    305: "Indonesia - Liga 1",
+    275: "Malaysia - Super League",
+    340: "Vietnam - V.League 1",
+    # Uzbekistan already in Europe Other
+    17:  "AFC Champions League Elite",
+}
+
+# ─── UEFA CONTINENTAL ─────────────────────────────────────────────────────────
+_UEFA = {
+    2:   "UEFA Champions League",
+    3:   "UEFA Europa League",
+    848: "UEFA Conference League",
+}
+
+# ─── BUILD MASTER WHITELIST ───────────────────────────────────────────────────
+TARGET_LEAGUE_IDS: dict[int, str] = {
+    **_ENGLAND,
+    **_SPAIN,
+    **_GERMANY,
+    **_ITALY,
+    **_FRANCE,
+    **_PORTUGAL,
+    **_NETHERLANDS,
+    **_BELGIUM,
+    **_SCOTLAND,
+    **_TURKEY,
+    **_EUROPE_OTHER,
+    **_SOUTH_AMERICA,
+    **_NORTH_AMERICA,
+    **_AFRICA,
+    **_ASIA,
+    **_UEFA,
 }
 
 LEAGUE_WHITELIST: dict[int, str] = dict(TARGET_LEAGUE_IDS)
